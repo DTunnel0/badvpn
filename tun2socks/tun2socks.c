@@ -198,6 +198,7 @@ struct {
     int udpgw_max_connections;
     int udpgw_connection_buffer_size;
     int udpgw_transparent_dns;
+    int udprelay;
 #ifdef __ANDROID__
     int tun_mtu;
     int fake_proc;
@@ -638,7 +639,7 @@ int main (int argc, char **argv)
         if (!SocksUdpGwClient_Init(&udpgw_client, udp_mtu, DEFAULT_UDPGW_MAX_CONNECTIONS,
             options.udpgw_connection_buffer_size, UDPGW_KEEPALIVE_TIME, socks_server_addr,
             dnsgw, socks_auth_info, socks_num_auth_info, udpgw_remote_server_addr,
-            UDPGW_RECONNECT_TIME, &ss, NULL, udp_send_packet_to_device))
+            UDPGW_RECONNECT_TIME, &ss, NULL, udp_send_packet_to_device, options.udprelay))
         {
             BLog(BLOG_ERROR, "SocksUdpGwClient_Init failed");
             goto fail4a;
@@ -779,7 +780,7 @@ void print_help (const char *name)
         "        [--tunmtu <mtu>]\n"
         "        [--dnsgw <dns_gateway_address>]\n"
         "        [--pid <pid_file>]\n"
-        "        [--sock-path <sock_path>]\n"
+        "        [--sock <sock_path>]\n"
 #else
         "        [--tundev <name>]\n"
 #endif
@@ -794,12 +795,11 @@ void print_help (const char *name)
 #ifdef __ANDROID__
         "        [--enable-udprelay]\n"
         "        [--udprelay-max-connections <number>]\n"
-#else
+#endif
         "        [--udpgw-remote-server-addr <addr>]\n"
         "        [--udpgw-max-connections <number>]\n"
         "        [--udpgw-connection-buffer-size <number>]\n"
         "        [--udpgw-transparent-dns]\n"
-#endif
         "        [--socks5-udp]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
@@ -848,6 +848,7 @@ int parse_arguments (int argc, char *argv[])
     options.udpgw_max_connections = DEFAULT_UDPGW_MAX_CONNECTIONS;
     options.udpgw_connection_buffer_size = DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE;
     options.udpgw_transparent_dns = 0;
+    options.udprelay = 0;
     options.socks5_udp = 0;
 
     int i;
@@ -949,7 +950,7 @@ int parse_arguments (int argc, char *argv[])
             options.dnsgw = argv[i + 1];
             i++;
         }
-        else if (!strcmp(arg, "--sock-path")) {
+        else if (!strcmp(arg, "--sock")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
@@ -1037,21 +1038,19 @@ int parse_arguments (int argc, char *argv[])
 #ifdef __ANDROID__
         else if (!strcmp(arg, "--enable-udprelay")) {
             options.udpgw_remote_server_addr = "0.0.0.0:0";
-#else
+            options.udprelay = 1;
+        }
+#endif
         else if (!strcmp(arg, "--udpgw-remote-server-addr")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
             }
             options.udpgw_remote_server_addr = argv[i + 1];
+            options.udprelay = 0;
             i++;
-#endif
         }
-#ifdef __ANDROID__
-        else if (!strcmp(arg, "--udprelay-max-connections")) {
-#else
-        else if (!strcmp(arg, "--udpgw-max-connections")) {
-#endif
+        else if (!strcmp(arg, "--udprelay-max-connections") || !strcmp(arg, "--udprelay-max-connections")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
@@ -1062,7 +1061,6 @@ int parse_arguments (int argc, char *argv[])
             }
             i++;
         }
-#ifndef __ANDROID__
         else if (!strcmp(arg, "--udpgw-connection-buffer-size")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
@@ -1077,7 +1075,6 @@ int parse_arguments (int argc, char *argv[])
         else if (!strcmp(arg, "--udpgw-transparent-dns")) {
             options.udpgw_transparent_dns = 1;
         }
-#endif
         else if (!strcmp(arg, "--socks5-udp")) {
             options.socks5_udp = 1;
         }
@@ -1591,7 +1588,7 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     // submit packet to udpgw or SOCKS UDP
     if (udp_mode == UdpModeUdpgw) {
         SocksUdpGwClient_SubmitPacket(&udpgw_client, local_addr, remote_addr,
-                                      is_dns, data, data_len);
+                                      is_dns, data, data_len, options.udprelay);
     } else if (udp_mode == UdpModeSocks) {
         SocksUdpClient_SubmitPacket(&socks_udp_client, local_addr, remote_addr, data, data_len);
     }
