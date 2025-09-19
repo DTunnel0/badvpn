@@ -200,6 +200,7 @@ struct {
     int udpgw_transparent_dns;
     int udprelay;
 #ifdef __ANDROID__
+    int tun_fd;
     int tun_mtu;
     int fake_proc;
     char *sock_path;
@@ -829,6 +830,7 @@ int parse_arguments (int argc, char *argv[])
         options.loglevels[i] = -1;
     }
 #ifdef __ANDROID__
+    options.tun_fd = -1;
     options.tun_mtu = 1500;
     options.fake_proc = 0;
     options.pid = NULL;
@@ -930,6 +932,17 @@ int parse_arguments (int argc, char *argv[])
 #ifdef __ANDROID__
         else if (!strcmp(arg, "--fake-proc")) {
             options.fake_proc = 1;
+        }
+        else if (!strcmp(arg, "--tunfd")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.tun_fd = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
         }
         else if (!strcmp(arg, "--tunmtu")) {
             if (1 >= argc - i) {
