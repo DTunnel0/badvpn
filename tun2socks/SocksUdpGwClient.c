@@ -502,7 +502,7 @@ static void udpgw_handler_received (SocksUdpGwClient *o, BAddr local_addr, BAddr
 int SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time,
                            BAddr socks_server_addr, BAddr dnsgw, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
                            BAddr remote_udpgw_addr, btime_t reconnect_time, BReactor *reactor, void *user,
-                           SocksUdpGwClient_handler_received handler_received, int udprelay)
+                           SocksUdpGwClient_handler_received handler_received)
 {
     // see asserts in UdpGwClient_Init
     ASSERT(!BAddr_IsInvalid(&socks_server_addr))
@@ -521,25 +521,22 @@ int SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections
     o->handler_received = handler_received;
     o->dnsgw = dnsgw;
 
-    if (udprelay == 1){
 #ifdef __ANDROID__
-        // compute MTUs
-        o->udpgw_mtu = udpgw_compute_mtu(o->udp_mtu);
-        o->max_connections = max_connections;
+    // compute MTUs
+    o->udpgw_mtu = udpgw_compute_mtu(o->udp_mtu);
+    o->max_connections = max_connections;
 
-        // limit max connections to number of conid's
-        if (o->max_connections > UINT16_MAX + 1) {
-            o->max_connections = UINT16_MAX + 1;
-        }
-
-        // init connections tree by conaddr
-        BAVL_Init(&o->connections_tree, OFFSET_DIFF(SocksUdpGwClient_connection, conaddr, connections_tree_node), (BAVL_comparator)conaddr_comparator, NULL);
-
-        // init connections list
-        LinkedList1_Init(&o->connections_list);
-#endif
-        return 1;
+    // limit max connections to number of conid's
+    if (o->max_connections > UINT16_MAX + 1) {
+        o->max_connections = UINT16_MAX + 1;
     }
+
+    // init connections tree by conaddr
+    BAVL_Init(&o->connections_tree, OFFSET_DIFF(SocksUdpGwClient_connection, conaddr, connections_tree_node), (BAVL_comparator)conaddr_comparator, NULL);
+
+    // init connections list
+    LinkedList1_Init(&o->connections_list);
+#endif
 
     // init udpgw client
     if (!UdpGwClient_Init(&o->udpgw_client, udp_mtu, max_connections, send_buffer_size, keepalive_time, o->reactor, o,
@@ -594,7 +591,7 @@ void SocksUdpGwClient_SubmitPacket (SocksUdpGwClient *o, BAddr local_addr, BAddr
     DebugObject_Access(&o->d_obj);
     // see asserts in UdpGwClient_SubmitPacket
 
-    if (udprelay == 1){
+    if (udprelay == 1 || is_dns == 1) {
 #ifdef __ANDROID__
         ASSERT(local_addr.type == BADDR_TYPE_IPV4 || local_addr.type == BADDR_TYPE_IPV6)
         ASSERT(remote_addr.type == BADDR_TYPE_IPV4 || remote_addr.type == BADDR_TYPE_IPV6)
